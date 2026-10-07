@@ -1,0 +1,1 @@
+{"action":{"default_popup":"popup.html","default_title":"Semantic Tab Finder"},"description":"Find your open tabs by meaning, not just keywords.","manifest_version":3,"name":"Semantic Tab Finder","permissions":["tabs"],"version":"0.1.0"}

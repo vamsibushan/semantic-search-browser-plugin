@@ -1,1 +1,61 @@
-# semantic-search-browser-plugin
+# Semantic Tab Finder
+
+A type-safe (TypeScript) browser extension that finds your open tabs by **meaning**,
+not just keywords. Type "quarterly numbers" and it surfaces the Google Sheets tab
+titled "Q3 Finance Review" — then jumps straight to it.
+
+Works in both **Chrome** and **Firefox** from one codebase.
+
+## How it works
+
+1. The popup reads all open tabs via `tabs.query`.
+2. Each tab's title + URL is embedded locally with `Xenova/all-MiniLM-L6-v2`
+   (Transformers.js — runs fully on-device, no server, no data leaves the browser).
+3. Your query is embedded the same way; tabs are ranked by cosine similarity.
+4. Clicking a result (or pressing Enter) activates the tab directly via
+   `tabs.update({ active: true })` and focuses its window.
+
+First run downloads a ~23 MB model (cached afterwards).
+
+## Stack
+
+- TypeScript (strict)
+- [webextension-polyfill](https://github.com/mozilla/webextension-polyfill) — one API
+  (`browser.*`) for Chrome + Firefox
+- [@xenova/transformers](https://huggingface.co/docs/transformers.js) — local embeddings
+- esbuild — bundling, Manifest V3
+
+## Build
+
+```bash
+npm install
+npm run build          # builds dist/chrome and dist/firefox
+npm run typecheck      # tsc --noEmit
+```
+
+## Load it
+
+**Chrome:** `chrome://extensions` → Developer mode → *Load unpacked* → `dist/chrome`
+
+**Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* →
+`dist/firefox/manifest.json`
+
+Click the extension icon, type what you're looking for, Enter jumps to the top hit.
+
+## Project layout
+
+```
+src/
+  manifest.json        # MV3 base manifest (gecko id injected for Firefox)
+  popup.html / popup.ts# search UI + ranking + tab activation
+  lib/
+    tabs.ts            # cross-browser tab helpers
+    embeddings.ts      # local embedding model + cosine similarity
+build.mjs              # esbuild + per-browser dist output
+```
+
+## Roadmap ideas
+
+- Arrow-key navigation through results
+- Index tab page content (not just title/URL) for deeper matches
+- Group/filter by window, recency boost for recently used tabs
