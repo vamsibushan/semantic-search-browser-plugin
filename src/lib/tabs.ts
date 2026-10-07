@@ -28,3 +28,23 @@ export async function activateTab(tabId: number, windowId: number): Promise<void
   await browser.tabs.update(tabId, { active: true });
   await browser.windows.update(windowId, { focused: true });
 }
+
+/**
+ * Extract readable text from a tab's page (first ~3000 chars).
+ * Returns "" for pages we can't access (e.g. chrome://, extension pages).
+ */
+export async function getPageContent(tabId: number): Promise<string> {
+  try {
+    const results = await browser.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const text = document.body ? document.body.innerText : "";
+        return text.replace(/\s+/g, " ").trim().slice(0, 3000);
+      },
+    });
+    const first = results[0];
+    return typeof first?.result === "string" ? first.result : "";
+  } catch {
+    return "";
+  }
+}

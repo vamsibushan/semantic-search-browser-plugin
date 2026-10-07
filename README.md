@@ -9,11 +9,12 @@ Works in both **Chrome** and **Firefox** from one codebase.
 ## How it works
 
 1. The popup reads all open tabs via `tabs.query`.
-2. Each tab's title + URL is embedded locally with `Xenova/all-MiniLM-L6-v2`
+2. Each tab's title + URL **+ page text** (extracted via `scripting.executeScript`,
+   first ~3000 chars) is embedded locally with `Xenova/all-MiniLM-L6-v2`
    (Transformers.js — runs fully on-device, no server, no data leaves the browser).
 3. Your query is embedded the same way; tabs are ranked by cosine similarity.
-4. Clicking a result (or pressing Enter) activates the tab directly via
-   `tabs.update({ active: true })` and focuses its window.
+4. Click a result, or navigate with ↑↓ and press Enter — the tab opens directly via
+   `tabs.update({ active: true })` and its window is focused.
 
 First run downloads a ~23 MB model (cached afterwards).
 
@@ -40,7 +41,11 @@ npm run typecheck      # tsc --noEmit
 **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* →
 `dist/firefox/manifest.json`
 
-Click the extension icon, type what you're looking for, Enter jumps to the top hit.
+Click the extension icon, type what you're looking for, ↑↓ to move through
+results, Enter jumps to the highlighted tab.
+
+Permissions used: `tabs` (list/activate tabs), `scripting` + `<all_urls>` host
+permission (read page text for semantic indexing — stays on-device).
 
 ## Project layout
 

@@ -1,6 +1,6 @@
 import browser from "webextension-polyfill";
 import { embed, cosineSimilarity, warmup } from "./lib/embeddings";
-import { getAllTabs, activateTab, type TabInfo } from "./lib/tabs";
+import { getAllTabs, activateTab, getPageContent, type TabInfo } from "./lib/tabs";
 
 interface ScoredTab extends TabInfo {
   score: number;
@@ -11,22 +11,24 @@ const resultsEl = document.getElementById("results") as HTMLUListElement;
 const statusEl = document.getElementById("status") as HTMLDivElement;
 
 let current: ScoredTab[] = [];
+let selectedIndex = 0;
 let debounce: number | undefined;
 
 // In-memory embedding cache for this popup session, keyed by tab content.
 const embeddingCache = new Map<string, number[]>();
+const MAX_CACHE_ENTRIES = 300;
 
-function cacheKey(t: TabInfo): string {
-  return `${t.title}\n${t.url}`;
+function remember(key: string, vec: number[]): void {
+  if (embeddingCache.size >= MAX_CACHE_ENTRIES) embeddingCache.clear();
+  embeddingCache.set(key, vec);
 }
 
-async function embedCached(t: TabInfo): Promise<number[]> {
-  const key = cacheKey(t);
-  const hit = embeddingCache.get(key);
-  if (hit) return hit;
-  const vec = await embed(`${t.title} ${t.url}`);
-  embeddingCache.set(key, vec);
-  return vec;
+async function buildDoc(t: TabInfo): Promise<{ key: string; text: string }> {
+  const content = await getPageContent(t.id);
+  return {
+    key: `${t.title}\n${t.url}\n${content}`,
+    text: `${t.title} ${t.url} ${content}`,
+  };
 }
 
 async function searchTabs(query: string, limit = 8): Promise<ScoredTab[]> {
@@ -35,7 +37,12 @@ async function searchTabs(query: string, limit = 8): Promise<ScoredTab[]> {
   const queryVec = await embed(query);
   const scored: ScoredTab[] = [];
   for (const t of tabs) {
-    const vec = await embedCached(t);
+    const doc = await buildDoc(t);
+    let vec = embeddingCache.get(doc.key);
+    if (!vec) {
+      vec = await embed(doc.text);
+      remember(doc.key, vec);
+    }
     scored.push({ ...t, score: cosineSimilarity(queryVec, vec) });
   }
   scored.sort((a, b) => b.score - a.score);
@@ -48,14 +55,18 @@ async function runSearch(): Promise<void> {
     resultsEl.innerHTML = "";
     statusEl.textContent = "";
     current = [];
+    selectedIndex = 0;
     return;
   }
-  statusEl.textContent = "Searching…";
+  statusEl.textContent = "Reading tabs…";
   try {
     current = await searchTabs(query);
+    selectedIndex = 0;
     render(current);
     statusEl.textContent =
-      current.length === 0 ? "No open tabs." : "Enter opens the top result.";
+      current.length === 0
+        ? "No open tabs."
+        : "↑↓ to navigate, Enter opens the highlighted tab.";
   } catch (err) {
     console.error(err);
     statusEl.textContent =
@@ -84,6 +95,23 @@ function render(tabs: ScoredTab[]): void {
     li.appendChild(button);
     resultsEl.appendChild(li);
   }
+  paintSelection();
+}
+
+function paintSelection(): void {
+  const items = resultsEl.querySelectorAll<HTMLButtonElement>(".result");
+  items.forEach((el, i) => {
+    const selected = i === selectedIndex;
+    el.classList.toggle("selected", selected);
+    if (selected) el.scrollIntoView({ block: "nearest" });
+  });
+}
+
+function moveSelection(delta: number): void {
+  if (current.length === 0) return;
+  selectedIndex =
+    (selectedIndex + delta + current.length) % current.length;
+  paintSelection();
 }
 
 async function openTab(t: ScoredTab): Promise<void> {
@@ -97,8 +125,14 @@ input.addEventListener("input", () => {
 });
 
 input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && current.length > 0) {
-    void openTab(current[0]);
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    moveSelection(1);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    moveSelection(-1);
+  } else if (e.key === "Enter" && current.length > 0) {
+    void openTab(current[selectedIndex] ?? current[0]);
   }
 });
 
