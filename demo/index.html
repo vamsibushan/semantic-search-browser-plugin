@@ -107,7 +107,8 @@
     const chipsEl = document.getElementById("chips");
 
     let extractor = null;
-    let docVecs = [];
+    let docVecs = []; // per tab: { title, url, content } vectors (weights mirror src/lib/ranking.ts)
+    const WEIGHTS = { title: 0.5, url: 0.15, content: 0.35 };
     let debounce;
 
     const cosine = (a, b) => {
@@ -123,7 +124,10 @@
         extractor = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
         statusEl.textContent = "Indexing mock tabs…";
         for (const t of TABS) {
-          docVecs.push(await embed(`${t.title} ${t.url} ${t.content}`));
+          const [title, url, content] = await Promise.all([
+            embed(t.title), embed(t.url), embed(t.content),
+          ]);
+          docVecs.push({ title, url, content });
         }
         input.disabled = false;
         statusEl.textContent = "Ready — type to search by meaning.";
@@ -136,8 +140,14 @@
 
     async function search(query) {
       const qv = await embed(query);
-      return TABS.map((t, i) => ({ ...t, score: cosine(qv, docVecs[i]) }))
-        .sort((a, b) => b.score - a.score);
+      return TABS.map((t, i) => {
+        const v = docVecs[i];
+        const score =
+          WEIGHTS.title * cosine(qv, v.title) +
+          WEIGHTS.url * cosine(qv, v.url) +
+          WEIGHTS.content * cosine(qv, v.content);
+        return { ...t, score };
+      }).sort((a, b) => b.score - a.score);
     }
 
     function render(ranked) {

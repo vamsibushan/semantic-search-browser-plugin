@@ -1,1 +1,22 @@
-{"compilerOptions":{"esModuleInterop":true,"forceConsistentCasingInFileNames":true,"lib":["ES2020","DOM","DOM.Iterable"],"module":"ESNext","moduleResolution":"bundler","noEmit":true,"skipLibCheck":true,"strict":true,"target":"ES2020"},"include":["src","build.mjs"]}
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2020",
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "src",
+    "build.mjs"
+  ]
+}

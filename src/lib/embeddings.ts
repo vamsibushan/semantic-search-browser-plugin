@@ -30,11 +30,3 @@ export async function embed(text: string): Promise<number[]> {
   const output = await extractor(text, { pooling: "mean", normalize: true });
   return Array.from(output.data);
 }
-
-/** Cosine similarity. Vectors from `embed` are normalized, so this is the dot product. */
-export function cosineSimilarity(a: number[], b: number[]): number {
-  let dot = 0;
-  const n = Math.min(a.length, b.length);
-  for (let i = 0; i < n; i++) dot += a[i] * b[i];
-  return dot;
-}

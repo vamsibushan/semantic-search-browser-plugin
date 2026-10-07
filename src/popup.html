@@ -68,9 +68,10 @@
   </style>
 </head>
 <body>
-  <input id="search" type="text" placeholder="Search tabs by meaning…" autocomplete="off" />
-  <div id="status"></div>
-  <ul id="results"></ul>
+  <input id="search" type="text" placeholder="Search tabs by meaning…" autocomplete="off"
+         role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list" />
+  <div id="status" role="status"></div>
+  <ul id="results" role="listbox" aria-label="Matching tabs"></ul>
   <script type="module" src="popup.js"></script>
 </body>
 </html>
