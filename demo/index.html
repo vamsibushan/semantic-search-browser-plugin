@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Semantic Tab Finder — Live Demo</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    .sub { opacity: 0.7; margin-bottom: 16px; }
+    .sub code { font-size: 13px; }
+    #search {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      font-size: 15px;
+      border: 1px solid #888;
+      border-radius: 8px;
+    }
+    #status { margin: 10px 2px; font-size: 13px; opacity: 0.7; min-height: 1.2em; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+    .chip {
+      font: inherit;
+      font-size: 13px;
+      padding: 4px 10px;
+      border: 1px solid #888;
+      border-radius: 999px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .chip:hover { border-color: #4c8dff; }
+    #results { list-style: none; margin: 0; padding: 0; }
+    .result {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      width: 100%;
+      box-sizing: border-box;
+      text-align: left;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: transparent;
+      font: inherit;
+      cursor: default;
+    }
+    .result .title { font-weight: 600; }
+    .result .url { font-size: 12px; opacity: 0.6; }
+    .result .score {
+      font-size: 12px;
+      opacity: 0.6;
+      margin-top: 2px;
+    }
+    .result .demo-note { font-size: 12px; opacity: 0.55; font-style: italic; }
+    footer { margin-top: 24px; font-size: 13px; opacity: 0.65; }
+  </style>
+</head>
+<body>
+  <h1>Semantic Tab Finder — live demo</h1>
+  <p class="sub">
+    This page runs the extension's real ranking engine in your browser:
+    each mock tab below is embedded with <code>all-MiniLM-L6-v2</code>
+    (downloaded once, ~23&nbsp;MB, fully on-device) and your query is matched
+    by meaning — try a query that shares <em>no keywords</em> with any tab.
+  </p>
+
+  <input id="search" type="text" placeholder="Try &quot;cheap vacation&quot; or &quot;bread recipe&quot;…" autocomplete="off" disabled />
+  <div id="status">Loading search model…</div>
+  <div class="chips" id="chips"></div>
+  <ul id="results"></ul>
+
+  <footer>
+    In the real extension these would be your actual open tabs, and clicking
+    (or ↑↓ + Enter) jumps straight to the tab.
+    <a href="https://github.com/vamsibushan/semantic-search-browser-plugin">Back to the repo</a>
+  </footer>
+
+  <script type="module">
+    import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/+esm";
+
+    // Mock open tabs: title + URL + page text, like the extension collects.
+    const TABS = [
+      { title: "Q3 Finance Review", url: "https://docs.google.com/spreadsheets/d/abc", content: "Quarterly revenue breakdown, operating expenses, profit margins by region, forecast for Q4." },
+      { title: "Hiking Trails Near Seattle", url: "https://www.wta.org/go-hiking", content: "Rattlesnake Ledge, Mount Si, best wildflower meadows, trail difficulty ratings and parking passes." },
+      { title: "PostgreSQL Performance Tuning", url: "https://wiki.postgresql.org/wiki/Performance", content: "Index selection, EXPLAIN ANALYZE, query planner statistics, vacuuming and connection pooling." },
+      { title: "Sourdough Starter Guide", url: "https://www.kingarthurbaking.com/sourdough", content: "Feeding schedule, hydration ratios, bulk fermentation times, baking in a dutch oven." },
+      { title: "React Hooks Deep Dive", url: "https://react.dev/reference/react", content: "useEffect cleanup, useMemo vs useCallback, custom hooks patterns, concurrent rendering." },
+      { title: "Tokyo Flight Deals", url: "https://www.google.com/flights/tokyo", content: "Cheapest months to fly to Japan, layover options, fare alerts and baggage fees." },
+      { title: "Inbox (3) - Gmail", url: "https://mail.google.com", content: "Recruiter from Meta about a software engineering role, interview scheduling, offer letter from landlord." },
+      { title: "Kubernetes Deployment Checklist", url: "https://kubernetes.io/docs", content: "Rolling updates, readiness probes, resource limits, Helm chart values for production." },
+    ];
+
+    const SUGGESTIONS = ["money report", "weekend outdoors", "database speed", "bread recipe", "cheap vacation", "job application", "container orchestration"];
+
+    const input = document.getElementById("search");
+    const statusEl = document.getElementById("status");
+    const resultsEl = document.getElementById("results");
+    const chipsEl = document.getElementById("chips");
+
+    let extractor = null;
+    let docVecs = [];
+    let debounce;
+
+    const cosine = (a, b) => {
+      let dot = 0;
+      for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
+      return dot;
+    };
+    const embed = async (text) =>
+      Array.from((await extractor(text, { pooling: "mean", normalize: true })).data);
+
+    async function init() {
+      try {
+        extractor = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
+        statusEl.textContent = "Indexing mock tabs…";
+        for (const t of TABS) {
+          docVecs.push(await embed(`${t.title} ${t.url} ${t.content}`));
+        }
+        input.disabled = false;
+        statusEl.textContent = "Ready — type to search by meaning.";
+        input.focus();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Could not load the model (network needed for the one-time download).";
+      }
+    }
+
+    async function search(query) {
+      const qv = await embed(query);
+      return TABS.map((t, i) => ({ ...t, score: cosine(qv, docVecs[i]) }))
+        .sort((a, b) => b.score - a.score);
+    }
+
+    function render(ranked) {
+      resultsEl.innerHTML = "";
+      for (const t of ranked) {
+        const li = document.createElement("li");
+        li.className = "result";
+        li.innerHTML =
+          `<span class="title"></span><span class="url"></span>` +
+          `<span class="score">similarity ${t.score.toFixed(3)}</span>` +
+          `<span class="demo-note">demo only — the extension would jump to this tab</span>`;
+        li.querySelector(".title").textContent = t.title;
+        li.querySelector(".url").textContent = t.url;
+        resultsEl.appendChild(li);
+      }
+    }
+
+    input.addEventListener("input", () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(async () => {
+        const q = input.value.trim();
+        if (!q) { resultsEl.innerHTML = ""; return; }
+        statusEl.textContent = "Searching…";
+        try {
+          render(await search(q));
+          statusEl.textContent = "Ranked by semantic similarity.";
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = "Search failed — try again.";
+        }
+      }, 250);
+    });
+
+    for (const s of SUGGESTIONS) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip";
+      chip.textContent = s;
+      chip.addEventListener("click", () => {
+        input.value = s;
+        input.dispatchEvent(new Event("input"));
+      });
+      chipsEl.appendChild(chip);
+    }
+
+    init();
+  </script>
+</body>
+</html>

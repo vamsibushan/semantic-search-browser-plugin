@@ -44,6 +44,19 @@ npm run typecheck      # tsc --noEmit
 Click the extension icon, type what you're looking for, ↑↓ to move through
 results, Enter jumps to the highlighted tab.
 
+## Demo
+
+No install needed — [demo/index.html](demo/index.html) runs the extension's real
+ranking engine in your browser over mock tabs. It loads `all-MiniLM-L6-v2` from a
+CDN (one-time ~23 MB download, fully on-device afterwards). Open it directly
+(`file://` works) or serve the folder:
+
+```bash
+npx serve demo   # then open the printed URL
+```
+
+Try a query with zero keyword overlap, like "cheap vacation" or "bread recipe".
+
 Permissions used: `tabs` (list/activate tabs), `scripting` + `<all_urls>` host
 permission (read page text for semantic indexing — stays on-device).
 
